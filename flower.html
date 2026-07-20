@@ -6,10 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="css/main.css">
     <link rel="icon" href="img/flowers.png" type="image/x-icon">
-    <title>flowers</title>
+    <title>For You 🌸</title>
 </head>
 <body class="container">
     <div class="night"></div>
+    <div id="day-sky"></div>
+    <canvas id="fx-canvas"></canvas>
+
+    <div id="envelope-screen">
+      <div class="envelope">
+        <div class="envelope__body"></div>
+        <div class="envelope__flap"></div>
+        <div class="envelope__heart">❤️</div>
+      </div>
+      <div class="envelope__label">tap the envelope to open</div>
+    </div>
+
+    <div id="message-panel"><span id="typewriter"></span></div>
+    <div id="quote-panel"></div>
+    <div id="hidden-note"></div>
+    <div id="hint-text">🌸 tap to bloom a flower · move for petals · double‑tap for a bouquet</div>
+    <button id="music-toggle" aria-label="Toggle music">🎵</button>
+
+    <div id="scene">
     <div class="flowers">
       <div class="flower flower--1">
         <div class="flower__leafs flower__leafs--1">
@@ -306,7 +325,8 @@
         </div>
       </div>
     </div>
-    
+    </div><!-- /#scene -->
+
     <script src="main.js"></script>
   </body>
 </html>
