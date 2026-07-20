@@ -1319,3 +1319,320 @@ body {
   -webkit-animation-play-state: paused !important;
           animation-play-state: paused !important;
 }
+/* =========================================================================
+   V2 — INTERACTIVE EXPERIENCE LAYER
+   Everything below is additive: it does not touch the original tree/flower
+   animation rules above, it only adds new elements and behaviour on top.
+   ========================================================================= */
+
+html, body {
+  height: 100%;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* ---- scene wrapper (used for the gentle breathing camera zoom) --------- */
+#scene {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  will-change: transform;
+}
+
+/* ---- day / night sky crossfade ----------------------------------------- */
+#day-sky {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(to bottom,
+      #ffd9a0 0%,
+      #ff9f6b 18%,
+      #7ec8e3 45%,
+      #bdeaff 65%,
+      #eaf9ff 100%);
+  transition: opacity 1.2s linear;
+  mix-blend-mode: screen;
+}
+
+/* ---- fx canvas: stars / fireflies / sun / moon / petals / sparkles /
+        hearts / ripples / butterflies all render here -------------------- */
+#fx-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---- hint text ---------------------------------------------------------- */
+#hint-text {
+  position: fixed;
+  bottom: 1.5vmin;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: clamp(0.65rem, 1.6vmin, 0.85rem);
+  letter-spacing: 0.02em;
+  text-align: center;
+  text-shadow: 0 0 1vmin rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  animation: hint-fade 1s 3.5s forwards, hint-out 1s 12s forwards;
+  pointer-events: none;
+  padding: 0 4vmin;
+}
+@keyframes hint-fade { to { opacity: 1; } }
+@keyframes hint-out { to { opacity: 0; } }
+
+/* ---- music toggle -------------------------------------------------------- */
+#music-toggle {
+  position: fixed;
+  top: 2vmin;
+  right: 2vmin;
+  z-index: 60;
+  width: 6vmin;
+  height: 6vmin;
+  min-width: 38px;
+  min-height: 38px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 0.25s, transform 0.25s;
+  opacity: 0;
+  animation: hint-fade 1s 3.5s forwards;
+}
+#music-toggle:hover { background: rgba(255, 255, 255, 0.18); transform: scale(1.08); }
+#music-toggle.is-playing { color: #ffd0e6; }
+
+/* ---- message panel (typewriter "For You") -------------------------------- */
+#message-panel {
+  position: fixed;
+  top: 6vmin;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  text-align: center;
+  color: #fff;
+  font-family: 'Brush Script MT', 'Segoe Script', cursive, sans-serif;
+  font-size: clamp(1.4rem, 5vmin, 2.6rem);
+  text-shadow: 0 0 2vmin rgba(255, 120, 180, 0.6), 0 0 1px rgba(0,0,0,0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1s ease;
+}
+#message-panel.is-visible { opacity: 1; }
+#typewriter::after {
+  content: "";
+  display: inline-block;
+  width: 0.08em;
+  margin-left: 0.1em;
+  border-right: 2px solid rgba(255, 255, 255, 0.85);
+  animation: blink-cursor 0.8s steps(1) infinite;
+}
+@keyframes blink-cursor { 50% { border-color: transparent; } }
+
+/* ---- floating love quotes ------------------------------------------------- */
+#quote-panel {
+  position: fixed;
+  bottom: 6vmin;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 39;
+  color: rgba(255, 214, 232, 0.85);
+  font-family: 'Georgia', serif;
+  font-style: italic;
+  font-size: clamp(0.75rem, 1.9vmin, 1.05rem);
+  text-align: center;
+  max-width: 80vmin;
+  text-shadow: 0 0 1.2vmin rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transition: opacity 1.5s ease;
+  pointer-events: none;
+}
+#quote-panel.is-visible { opacity: 1; }
+
+/* ---- hidden note bubble (revealed when a big tree flower is clicked) ------ */
+#hidden-note {
+  position: fixed;
+  z-index: 70;
+  max-width: 46vmin;
+  padding: 1.6vmin 2vmin;
+  background: rgba(20, 10, 25, 0.85);
+  border: 1px solid rgba(255, 180, 210, 0.4);
+  border-radius: 1.4vmin;
+  color: #ffe3f0;
+  font-family: 'Georgia', serif;
+  font-size: clamp(0.8rem, 1.9vmin, 1rem);
+  text-align: center;
+  box-shadow: 0 0 3vmin rgba(255, 120, 180, 0.35);
+  transform: translate(-50%, -120%) scale(0.85);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+#hidden-note.is-visible {
+  opacity: 1;
+  transform: translate(-50%, -140%) scale(1);
+}
+
+/* ---- envelope opening screen ---------------------------------------------- */
+#envelope-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5vmin;
+  background: radial-gradient(ellipse at center, #2a1030 0%, #05010a 80%);
+  cursor: pointer;
+  transition: opacity 0.9s ease, visibility 0.9s;
+}
+#envelope-screen.is-open {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.envelope {
+  position: relative;
+  width: 34vmin;
+  max-width: 260px;
+  height: 22vmin;
+  max-height: 170px;
+}
+.envelope__body {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(155deg, #e9c6d6, #f3d9e4);
+  border-radius: 0.6vmin;
+  box-shadow: 0 1vmin 3vmin rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+.envelope__body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 49%, rgba(0,0,0,0.08) 50%, transparent 51%),
+              linear-gradient(-135deg, transparent 49%, rgba(0,0,0,0.08) 50%, transparent 51%);
+}
+.envelope__flap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 60%;
+  background: linear-gradient(155deg, #f7bfd7, #f3a9c8);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transform-origin: top center;
+  transition: transform 0.9s cubic-bezier(.6,-0.3,.4,1.4);
+  z-index: 3;
+  box-shadow: 0 0.4vmin 1vmin rgba(0,0,0,0.25);
+}
+.envelope__heart {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2.4vmin;
+  z-index: 4;
+  filter: drop-shadow(0 0 0.6vmin rgba(255, 80, 130, 0.7));
+}
+#envelope-screen.is-opening .envelope__flap {
+  transform: rotateX(180deg);
+}
+.envelope__label {
+  color: #ffe3f0;
+  font-family: 'Georgia', serif;
+  font-size: clamp(0.85rem, 2.1vmin, 1.1rem);
+  letter-spacing: 0.04em;
+  text-align: center;
+  opacity: 0.9;
+  animation: envelope-pulse 1.8s ease-in-out infinite;
+}
+@keyframes envelope-pulse { 50% { opacity: 0.45; } }
+
+/* ---- user-grown flowers (click to bloom) ----------------------------------- */
+.grown-flower {
+  position: fixed;
+  z-index: 15;
+  width: 6vmin;
+  height: 6vmin;
+  transform: translate(-50%, -50%) scale(0);
+  pointer-events: none;
+  animation: grown-pop 0.6s cubic-bezier(.3,1.6,.4,1) forwards,
+             grown-sway 3.6s ease-in-out infinite 0.6s;
+}
+.grown-flower__petal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 46%;
+  height: 62%;
+  background: var(--petal-color, #f672b0);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  transform-origin: 0% 100%;
+  opacity: 0.92;
+  box-shadow: inset 0 0 1vmin rgba(255,255,255,0.5);
+}
+.grown-flower__center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22%;
+  height: 22%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, #fff6b8, #ffcf5c);
+  border-radius: 50%;
+  box-shadow: 0 0 1vmin rgba(255, 220, 130, 0.8);
+}
+.grown-flower.is-fading { animation: grown-fade 1.4s ease forwards; }
+@keyframes grown-pop { to { transform: translate(-50%, -50%) scale(1); } }
+@keyframes grown-sway { 0%, 100% { transform: translate(-50%, -50%) rotate(-4deg) scale(1); } 50% { transform: translate(-50%, -50%) rotate(4deg) scale(1.04); } }
+@keyframes grown-fade { to { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } }
+
+/* ---- click ripple ---------------------------------------------------------- */
+.click-ripple {
+  position: fixed;
+  z-index: 14;
+  width: 2vmin;
+  height: 2vmin;
+  border-radius: 50%;
+  border: 0.3vmin solid rgba(255, 210, 230, 0.8);
+  transform: translate(-50%, -50%) scale(0.2);
+  opacity: 0.9;
+  pointer-events: none;
+  animation: ripple-out 0.8s ease-out forwards;
+}
+@keyframes ripple-out {
+  to { transform: translate(-50%, -50%) scale(9); opacity: 0; }
+}
+
+/* ---- night: flowers close slightly ----------------------------------------- */
+.is-night .flower__leafs { transform: scale(0.86) rotateX(12deg); transition: transform 4s ease; }
+.is-night .flower__white-circle { opacity: 0.6; transition: opacity 4s ease; }
+
+/* ---- responsive tweaks ------------------------------------------------------ */
+@media (max-width: 640px) {
+  #message-panel { top: 4vmin; font-size: clamp(1.2rem, 6.5vmin, 2rem); }
+  #hint-text { font-size: 0.62rem; bottom: 1vmin; }
+  .envelope { width: 60vmin; height: 38vmin; }
+  #music-toggle { width: 9vmin; height: 9vmin; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #scene, .grown-flower, .click-ripple { animation: none !important; }
+}
