@@ -1,16 +1,16 @@
 /* =========================================================================
-   FOR YOU 🌸 — v2 interactive experience
+   FOR YOU 🌸 — v3 interactive experience
    Sections:
+   0. Preloader
    1. Setup & small helpers
    2. Envelope gate (start experience)
-   3. Typewriter + floating love quotes
-   4. Day / night cycle (sky, sun, moon, stars, fireflies)
-   5. Canvas particle system (petals, sparkles, hearts, butterflies)
+   3. Typewriter (smooth, per-letter) + floating love quotes + custom message
+   4. Day / night cycle (sky, sun, moon, stars, fireflies, shooting stars)
+   5. Canvas particle system (petals/snow, sparkles, hearts, butterflies)
    6. Pointer interaction (bloom on click, petals on move, lean, bouquet)
    7. Hidden notes on the big tree flowers
-   8. Ripple effect
-   9. Ambient music toggle (WebAudio, no external files needed)
-   10. Main render loop
+   8. Settings panel (music / calm mode / winter mode) + music engine
+   9. Main render loop
    ========================================================================= */
 
 (() => {
@@ -21,8 +21,25 @@
   const rand = (a, b) => a + Math.random() * (b - a);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a, b, t) => a + (b - a) * t;
+  const store = {
+    get(key, fallback) {
+      try {
+        const v = localStorage.getItem(key);
+        return v === null ? fallback : JSON.parse(v);
+      } catch (e) {
+        return fallback;
+      }
+    },
+    set(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (e) {
+        /* storage unavailable, fail silently */
+      }
+    },
+  };
 
-  const PERSONAL_MESSAGE = "For You ❤️";
+  const DEFAULT_MESSAGE = "For You ❤️";
   const HIDDEN_NOTES = [
     "Every petal here bloomed just for you.",
     "You make ordinary days feel like this garden.",
@@ -30,14 +47,30 @@
     "I made this so you'd have a little garden of your own.",
   ];
   const LOVE_QUOTES = [
-    "“You are my favorite kind of weather.”",
-    "“Home isn't a place, it's a person.”",
-    "“Every flower here whispers your name.”",
-    "“Some gardens grow in the heart instead of the ground.”",
-    "“I'd plant a thousand of these for one of your smiles.”",
+    "You are my favorite kind of weather.",
+    "Home isn't a place, it's a person.",
+    "Every flower here whispers your name.",
+    "Some gardens grow in the heart instead of the ground.",
+    "I'd plant a thousand of these for one of your smiles.",
   ];
 
-  let bodyReady = false; // becomes true once envelope opens
+  let bodyReady = false;
+  let calmMode = store.get("fy_calm", false);
+  let winterMode = store.get("fy_winter", false);
+  let currentMessage = store.get("fy_message", DEFAULT_MESSAGE);
+
+  document.body.classList.toggle("calm-mode", calmMode);
+  document.body.classList.toggle("season-winter", winterMode);
+
+  /* ---------------------------------------------------------------- 0 -- */
+  const preloader = $("#preloader");
+  const minPreloadTime = 900;
+  const preloadStart = performance.now();
+  function hidePreloader() {
+    const elapsed = performance.now() - preloadStart;
+    const wait = Math.max(0, minPreloadTime - elapsed);
+    setTimeout(() => preloader.classList.add("is-hidden"), wait);
+  }
 
   /* ---------------------------------------------------------------- 2 -- */
   const envelopeScreen = $("#envelope-screen");
@@ -47,14 +80,21 @@
     envelopeScreen.classList.add("is-opening");
     setTimeout(() => {
       envelopeScreen.classList.add("is-open");
+      envelopeScreen.setAttribute("aria-hidden", "true");
       document.body.classList.remove("container"); // un-pause all CSS animations
       bodyReady = true;
-      startTypewriter();
+      startTypewriter(currentMessage);
       startQuoteCycle();
       startFireflySeed();
     }, 650);
   }
   envelopeScreen.addEventListener("click", openEnvelope);
+  envelopeScreen.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+      e.preventDefault();
+      openEnvelope();
+    }
+  });
   envelopeScreen.addEventListener(
     "touchstart",
     (e) => {
@@ -65,17 +105,43 @@
   );
 
   /* ---------------------------------------------------------------- 3 -- */
-  function startTypewriter() {
-    const el = $("#typewriter");
-    const panel = $("#message-panel");
-    panel.classList.add("is-visible");
+  const messagePanel = $("#message-panel");
+  const typewriterEl = $("#typewriter");
+  let typeToken = 0;
+
+  function startTypewriter(text) {
+    const myToken = ++typeToken;
+    typewriterEl.classList.remove("is-complete");
+    typewriterEl.innerHTML = "";
+    const chars = Array.from(text);
     let i = 0;
-    const speed = 110;
+    let delayAccum = 0;
+
+    chars.forEach((ch) => {
+      const span = document.createElement("span");
+      span.className = "char";
+      span.textContent = ch === " " ? "\u00A0" : ch;
+      typewriterEl.appendChild(span);
+    });
+
+    const spans = typewriterEl.querySelectorAll(".char");
+
     (function tick() {
-      if (i <= PERSONAL_MESSAGE.length) {
-        el.textContent = PERSONAL_MESSAGE.slice(0, i);
+      if (myToken !== typeToken) return; // superseded by a newer message
+      if (i < spans.length) {
+        const jitter = rand(55, 105);
+        spans[i].style.animationDelay = "0s";
+        spans[i].style.opacity = "0"; // ensure re-trigger of animation
+        requestAnimationFrame(() => {
+          spans[i].getBoundingClientRect(); // reflow to restart animation cleanly
+          spans[i].style.opacity = "";
+        });
         i++;
-        setTimeout(tick, speed);
+        setTimeout(tick, jitter);
+      } else {
+        setTimeout(() => {
+          if (myToken === typeToken) typewriterEl.classList.add("is-complete");
+        }, 400);
       }
     })();
   }
@@ -86,7 +152,7 @@
     function showNext() {
       panel.classList.remove("is-visible");
       setTimeout(() => {
-        panel.textContent = LOVE_QUOTES[idx % LOVE_QUOTES.length];
+        panel.textContent = "\u201C" + LOVE_QUOTES[idx % LOVE_QUOTES.length] + "\u201D";
         idx++;
         panel.classList.add("is-visible");
       }, 800);
@@ -95,16 +161,40 @@
     setInterval(showNext, 11000);
   }
 
+  // custom message editing --------------------------------------------------
+  const editBtn = $("#message-edit-btn");
+  const editForm = $("#message-edit-form");
+  const editInput = $("#message-edit-input");
+
+  editBtn.addEventListener("click", () => {
+    editForm.hidden = !editForm.hidden;
+    if (!editForm.hidden) {
+      editInput.value = currentMessage;
+      editInput.focus();
+      editInput.select();
+    }
+  });
+  editForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const val = editInput.value.trim();
+    if (val) {
+      currentMessage = val;
+      store.set("fy_message", currentMessage);
+      if (bodyReady) startTypewriter(currentMessage);
+    }
+    editForm.hidden = true;
+  });
+
   /* ---------------------------------------------------------------- 4 -- */
-  const DAY_CYCLE_MS = 120000; // one full day/night loop, tuned for a demo
-  const cycleStart = Date.now() - DAY_CYCLE_MS * 0.55; // start mid-afternoon-ish
+  const DAY_CYCLE_MS = 120000;
+  const cycleStart = Date.now() - DAY_CYCLE_MS * 0.55;
   const daySky = $("#day-sky");
 
   function getPhase() {
-    return ((Date.now() - cycleStart) % DAY_CYCLE_MS) / DAY_CYCLE_MS; // 0..1
+    return ((Date.now() - cycleStart) % DAY_CYCLE_MS) / DAY_CYCLE_MS;
   }
   function daylightAmount(phase) {
-    return (1 + Math.cos((phase - 0.5) * Math.PI * 2)) / 2; // 1 at noon, 0 at midnight
+    return (1 + Math.cos((phase - 0.5) * Math.PI * 2)) / 2;
   }
 
   let currentDaylight = 0;
@@ -120,7 +210,55 @@
   }
 
   function startFireflySeed() {
-    for (let i = 0; i < 14; i++) fireflies.push(makeFirefly());
+    const count = calmMode ? 8 : 14;
+    for (let i = 0; i < count; i++) fireflies.push(makeFirefly());
+  }
+
+  // shooting stars -----------------------------------------------------------
+  const shootingStars = [];
+  let nextShootAt = rand(4000, 9000);
+  let shootTimer = 0;
+  function maybeSpawnShootingStar(dtMs) {
+    if (currentNightAmt < 0.5 || calmMode) return;
+    shootTimer += dtMs;
+    if (shootTimer > nextShootAt) {
+      shootTimer = 0;
+      nextShootAt = rand(5000, 13000);
+      const startX = rand(W * 0.1, W * 0.9);
+      const startY = rand(H * 0.05, H * 0.28);
+      const angle = rand(Math.PI * 0.15, Math.PI * 0.3);
+      shootingStars.push({
+        x: startX,
+        y: startY,
+        vx: Math.cos(angle) * rand(9, 13),
+        vy: Math.sin(angle) * rand(9, 13),
+        life: 1,
+      });
+    }
+  }
+  function drawShootingStars(dt) {
+    for (let i = shootingStars.length - 1; i >= 0; i--) {
+      const s = shootingStars[i];
+      s.x += s.vx;
+      s.y += s.vy;
+      s.life -= dt * 1.1;
+      if (s.life <= 0) {
+        shootingStars.splice(i, 1);
+        continue;
+      }
+      ctx.save();
+      ctx.globalAlpha = clamp(s.life, 0, 1) * currentNightAmt;
+      const grad = ctx.createLinearGradient(s.x, s.y, s.x - s.vx * 6, s.y - s.vy * 6);
+      grad.addColorStop(0, "rgba(255,255,255,0.95)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - s.vx * 6, s.y - s.vy * 6);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   /* ---------------------------------------------------------------- 5 -- */
@@ -140,6 +278,10 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
   window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", () => setTimeout(resize, 200));
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", resize);
+  }
   resize();
 
   // stars ------------------------------------------------------------
@@ -164,18 +306,21 @@
     };
   }
 
-  // drifting petals ------------------------------------------------------
+  // drifting petals / snow ------------------------------------------------
   const petals = [];
   function spawnPetal(x, y) {
+    if (calmMode && petals.length > 40) return;
     petals.push({
       x: x ?? rand(0, W),
       y: y ?? -10,
       vx: rand(-0.4, 0.4),
-      vy: rand(0.4, 1.1),
+      vy: winterMode ? rand(0.5, 1.0) : rand(0.4, 1.1),
       rot: rand(0, Math.PI * 2),
       vr: rand(-0.03, 0.03),
-      size: rand(4, 9),
-      hue: rand(325, 345),
+      size: winterMode ? rand(2.5, 5.5) : rand(4, 9),
+      hue: winterMode ? rand(195, 210) : rand(325, 345),
+      sat: winterMode ? 15 : 85,
+      light: winterMode ? 92 : 78,
       life: 1,
     });
   }
@@ -183,17 +328,11 @@
   // sparkles -------------------------------------------------------------
   const sparkles = [];
   function spawnSparkleBurst(x, y, count = 10) {
-    for (let i = 0; i < count; i++) {
+    const n = calmMode ? Math.ceil(count * 0.5) : count;
+    for (let i = 0; i < n; i++) {
       const a = rand(0, Math.PI * 2);
       const speed = rand(0.6, 2.2);
-      sparkles.push({
-        x,
-        y,
-        vx: Math.cos(a) * speed,
-        vy: Math.sin(a) * speed,
-        life: 1,
-        size: rand(1.5, 3.5),
-      });
+      sparkles.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: 1, size: rand(1.5, 3.5) });
     }
   }
 
@@ -213,13 +352,12 @@
       vx: (fromLeft ? 1 : -1) * rand(0.6, 1.1),
       t: 0,
       wing: 0,
-      amp: rand(20, 50),
       freq: rand(0.02, 0.04),
       hue: rand(20, 320),
     });
   }
   setInterval(() => {
-    if (bodyReady && currentDaylight > 0.3 && butterflies.length < 3 && Math.random() < 0.6) {
+    if (bodyReady && !winterMode && !calmMode && currentDaylight > 0.3 && butterflies.length < 3 && Math.random() < 0.6) {
       spawnButterfly();
     }
   }, 6000);
@@ -268,7 +406,7 @@
   }
 
   function drawFireflies(dt) {
-    if (currentNightAmt < 0.2) return;
+    if (currentNightAmt < 0.2 || winterMode) return;
     ctx.save();
     ctx.globalAlpha = currentNightAmt;
     for (const f of fireflies) {
@@ -303,9 +441,13 @@
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rot);
       ctx.globalAlpha = clamp(p.life, 0, 1);
-      ctx.fillStyle = `hsl(${p.hue}, 85%, 78%)`;
+      ctx.fillStyle = `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
       ctx.beginPath();
-      ctx.ellipse(0, 0, p.size, p.size * 0.6, 0, 0, Math.PI * 2);
+      if (winterMode) {
+        ctx.arc(0, 0, p.size, 0, Math.PI * 2);
+      } else {
+        ctx.ellipse(0, 0, p.size, p.size * 0.6, 0, 0, Math.PI * 2);
+      }
       ctx.fill();
       ctx.restore();
     }
@@ -393,7 +535,6 @@
 
   /* ---------------------------------------------------------------- 6 -- */
   const sceneEl = $("#scene");
-  let pointerX = window.innerWidth / 2;
   let leanDeg = 0;
 
   function paintClickRipple(x, y) {
@@ -406,6 +547,7 @@
   }
 
   const grownFlowerHues = [335, 320, 350, 300, 12];
+  const winterFlowerHues = [200, 210, 190, 230];
   const MAX_GROWN = 45;
   const grownList = [];
 
@@ -415,10 +557,8 @@
     const scale = opts.scale || rand(0.7, 1.25);
     el.style.left = x + "px";
     el.style.top = y + "px";
-    el.style.setProperty(
-      "--petal-color",
-      `hsl(${grownFlowerHues[Math.floor(rand(0, grownFlowerHues.length))]}, 78%, 68%)`
-    );
+    const palette = winterMode ? winterFlowerHues : grownFlowerHues;
+    el.style.setProperty("--petal-color", `hsl(${palette[Math.floor(rand(0, palette.length))]}, ${winterMode ? 60 : 78}%, ${winterMode ? 82 : 68}%)`);
     el.style.width = 6 * scale + "vmin";
     el.style.height = 6 * scale + "vmin";
     const petalCount = 6;
@@ -463,20 +603,23 @@
   let lastMoveSpawn = 0;
   let lastPointerDown = { t: 0, x: 0, y: 0 };
 
-  window.addEventListener("pointermove", (e) => {
-    pointerX = e.clientX;
-    const centerX = window.innerWidth / 2;
-    leanDeg = clamp(((pointerX - centerX) / centerX) * 4, -4, 4);
+  window.addEventListener(
+    "pointermove",
+    (e) => {
+      const centerX = window.innerWidth / 2;
+      leanDeg = clamp(((e.clientX - centerX) / centerX) * 4, -4, 4);
 
-    const now = performance.now();
-    if (now - lastMoveSpawn > 60) {
-      lastMoveSpawn = now;
-      if (Math.random() < 0.7) spawnPetal(e.clientX + rand(-10, 10), e.clientY + rand(-10, 10));
-    }
-  });
+      const now = performance.now();
+      if (now - lastMoveSpawn > (calmMode ? 130 : 60)) {
+        lastMoveSpawn = now;
+        if (Math.random() < 0.7) spawnPetal(e.clientX + rand(-10, 10), e.clientY + rand(-10, 10));
+      }
+    },
+    { passive: true }
+  );
 
   window.addEventListener("pointerdown", (e) => {
-    if (e.target.closest("#music-toggle, #envelope-screen, #hidden-note")) return;
+    if (e.target.closest("#music-toggle, #settings-toggle, #settings-panel, #envelope-screen, #hidden-note, #message-panel, #ui-controls")) return;
 
     const now = performance.now();
     const dx = e.clientX - lastPointerDown.x;
@@ -499,7 +642,10 @@
     flowers.forEach((fl, i) => {
       fl.style.pointerEvents = "auto";
       fl.style.cursor = "pointer";
-      fl.addEventListener("click", (e) => {
+      fl.setAttribute("tabindex", "0");
+      fl.setAttribute("role", "button");
+      fl.setAttribute("aria-label", "Reveal a hidden note");
+      const reveal = (e) => {
         e.stopPropagation();
         const rect = fl.getBoundingClientRect();
         note.textContent = HIDDEN_NOTES[i % HIDDEN_NOTES.length];
@@ -509,11 +655,15 @@
         spawnHeart(rect.left + rect.width / 2, rect.top);
         clearTimeout(noteTimeout);
         noteTimeout = setTimeout(() => note.classList.remove("is-visible"), 3200);
+      };
+      fl.addEventListener("click", reveal);
+      fl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") reveal(e);
       });
     });
   }
 
-  /* ---------------------------------------------------------------- 9 -- */
+  /* ---------------------------------------------------------------- 8 -- */
   let audioCtx = null;
   let musicNodes = null;
   let musicPlaying = false;
@@ -526,7 +676,7 @@
     master.connect(audioCtx.destination);
     master.gain.exponentialRampToValueAtTime(0.06, audioCtx.currentTime + 2);
 
-    const notes = [196.0, 246.94, 293.66, 392.0]; // soft chord: G3 B3 D4 G4
+    const notes = [196.0, 246.94, 293.66, 392.0];
     const oscs = notes.map((freq, i) => {
       const osc = audioCtx.createOscillator();
       osc.type = "sine";
@@ -549,6 +699,7 @@
     musicNodes = { master, oscs };
     musicPlaying = true;
     musicBtn.classList.add("is-playing");
+    musicBtn.setAttribute("aria-pressed", "true");
     musicBtn.textContent = "🔊";
   }
 
@@ -569,6 +720,7 @@
     musicNodes = null;
     musicPlaying = false;
     musicBtn.classList.remove("is-playing");
+    musicBtn.setAttribute("aria-pressed", "false");
     musicBtn.textContent = "🎵";
   }
 
@@ -577,13 +729,54 @@
     musicPlaying ? stopMusic() : startMusic();
   });
 
-  /* ---------------------------------------------------------------- 10 - */
+  // settings panel -----------------------------------------------------------
+  const settingsToggle = $("#settings-toggle");
+  const settingsPanel = $("#settings-panel");
+  const settingWinter = $("#setting-winter");
+  const settingCalm = $("#setting-calm");
+  settingWinter.checked = winterMode;
+  settingCalm.checked = calmMode;
+
+  function openSettings() {
+    settingsPanel.hidden = false;
+    requestAnimationFrame(() => settingsPanel.classList.add("is-visible"));
+    settingsToggle.classList.add("is-open");
+    settingsToggle.setAttribute("aria-expanded", "true");
+  }
+  function closeSettings() {
+    settingsPanel.classList.remove("is-visible");
+    settingsToggle.classList.remove("is-open");
+    settingsToggle.setAttribute("aria-expanded", "false");
+    setTimeout(() => {
+      if (!settingsPanel.classList.contains("is-visible")) settingsPanel.hidden = true;
+    }, 250);
+  }
+  settingsToggle.addEventListener("click", () => {
+    settingsPanel.hidden ? openSettings() : closeSettings();
+  });
+  document.addEventListener("click", (e) => {
+    if (!settingsPanel.hidden && !e.target.closest("#settings-panel, #settings-toggle")) closeSettings();
+  });
+
+  settingWinter.addEventListener("change", () => {
+    winterMode = settingWinter.checked;
+    store.set("fy_winter", winterMode);
+    document.body.classList.toggle("season-winter", winterMode);
+  });
+  settingCalm.addEventListener("change", () => {
+    calmMode = settingCalm.checked;
+    store.set("fy_calm", calmMode);
+    document.body.classList.toggle("calm-mode", calmMode);
+  });
+
+  /* ---------------------------------------------------------------- 9 -- */
   let lastT = performance.now();
   let lastDayNightUpdate = 0;
   let breathePhase = 0;
 
   function frame(t) {
     const dt = Math.min((t - lastT) / 1000, 0.05);
+    const dtMs = t - lastT;
     lastT = t;
 
     if (t - lastDayNightUpdate > 400) {
@@ -594,14 +787,16 @@
     ctx.clearRect(0, 0, W, H);
     drawStars(dt);
     drawSunMoon();
+    maybeSpawnShootingStar(dtMs);
+    drawShootingStars(dt);
     drawFireflies(dt);
-    if (Math.random() < 0.02 && currentDaylight < 0.7) spawnPetal();
+    if (Math.random() < (calmMode ? 0.01 : 0.02) && currentDaylight < 0.7) spawnPetal();
     drawPetals(dt);
     drawSparkles(dt);
     drawHearts(dt);
-    drawButterflies(dt);
+    if (!winterMode) drawButterflies(dt);
 
-    if (bodyReady) {
+    if (bodyReady && !calmMode) {
       breathePhase += dt * 0.12;
       const breathe = 1 + Math.sin(breathePhase) * 0.02;
       sceneEl.style.transform = `scale(${breathe.toFixed(4)}) rotate(${leanDeg.toFixed(2)}deg)`;
@@ -612,6 +807,7 @@
 
   window.addEventListener("load", () => {
     initHiddenNotes();
+    hidePreloader();
     requestAnimationFrame(frame);
   });
 })();
