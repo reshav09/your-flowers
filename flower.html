@@ -3,17 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0">
+    <meta name="theme-color" content="#0d0614">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,500;1,500;1,600&family=Quicksand:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/main.css">
     <link rel="icon" href="img/flowers.png" type="image/x-icon">
     <title>For You 🌸</title>
 </head>
 <body class="container">
+    <div id="preloader" role="status" aria-live="polite">
+      <div class="preloader__ring"></div>
+      <div class="preloader__label">growing your garden&hellip;</div>
+    </div>
+
     <div class="night"></div>
     <div id="day-sky"></div>
     <canvas id="fx-canvas"></canvas>
 
-    <div id="envelope-screen">
+    <div id="envelope-screen" role="button" tabindex="0" aria-label="Open your gift">
       <div class="envelope">
         <div class="envelope__body"></div>
         <div class="envelope__flap"></div>
@@ -22,11 +31,33 @@
       <div class="envelope__label">tap the envelope to open</div>
     </div>
 
-    <div id="message-panel"><span id="typewriter"></span></div>
-    <div id="quote-panel"></div>
-    <div id="hidden-note"></div>
+    <div id="message-panel">
+      <span id="typewriter" aria-live="polite"></span>
+      <button id="message-edit-btn" type="button" aria-label="Edit message">✎</button>
+      <form id="message-edit-form" hidden>
+        <input id="message-edit-input" type="text" maxlength="60" autocomplete="off" aria-label="Custom message" placeholder="Write your own message&hellip;">
+        <button type="submit" aria-label="Save message">✓</button>
+      </form>
+    </div>
+    <div id="quote-panel" aria-live="off"></div>
+    <div id="hidden-note" aria-live="polite"></div>
     <div id="hint-text">🌸 tap to bloom a flower · move for petals · double‑tap for a bouquet</div>
-    <button id="music-toggle" aria-label="Toggle music">🎵</button>
+
+    <div id="ui-controls">
+      <button id="music-toggle" type="button" aria-label="Toggle music" aria-pressed="false">🎵</button>
+      <button id="settings-toggle" type="button" aria-label="Open settings" aria-expanded="false" aria-controls="settings-panel">⚙️</button>
+    </div>
+    <div id="settings-panel" hidden>
+      <p class="settings-panel__title">Settings</p>
+      <label class="settings-row">
+        <span>❄️ Winter mode</span>
+        <input type="checkbox" id="setting-winter">
+      </label>
+      <label class="settings-row">
+        <span>🌙 Calm mode</span>
+        <input type="checkbox" id="setting-calm">
+      </label>
+    </div>
 
     <div id="scene">
     <div class="flowers">
