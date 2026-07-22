@@ -1,15 +1,15 @@
 /* =========================================================================
-   FOR YOU 🌸 — v3 interactive experience
+   FOR YOU 🌸 — v3.1 interactive experience
    Sections:
    0. Preloader
    1. Setup & small helpers
    2. Envelope gate (start experience)
    3. Typewriter (smooth, per-letter) + floating love quotes + custom message
    4. Day / night cycle (sky, sun, moon, stars, fireflies, shooting stars)
-   5. Canvas particle system (petals/snow, sparkles, hearts, butterflies)
+   5. Canvas particle system (petals, sparkles, hearts, butterflies)
    6. Pointer interaction (bloom on click, petals on move, lean, bouquet)
    7. Hidden notes on the big tree flowers
-   8. Settings panel (music / calm mode / winter mode) + music engine
+   8. Ambient music toggle (WebAudio)
    9. Main render loop
    ========================================================================= */
 
@@ -55,12 +55,7 @@
   ];
 
   let bodyReady = false;
-  let calmMode = store.get("fy_calm", false);
-  let winterMode = store.get("fy_winter", false);
   let currentMessage = store.get("fy_message", DEFAULT_MESSAGE);
-
-  document.body.classList.toggle("calm-mode", calmMode);
-  document.body.classList.toggle("season-winter", winterMode);
 
   /* ---------------------------------------------------------------- 0 -- */
   const preloader = $("#preloader");
@@ -105,7 +100,6 @@
   );
 
   /* ---------------------------------------------------------------- 3 -- */
-  const messagePanel = $("#message-panel");
   const typewriterEl = $("#typewriter");
   let typeToken = 0;
 
@@ -115,7 +109,6 @@
     typewriterEl.innerHTML = "";
     const chars = Array.from(text);
     let i = 0;
-    let delayAccum = 0;
 
     chars.forEach((ch) => {
       const span = document.createElement("span");
@@ -130,12 +123,6 @@
       if (myToken !== typeToken) return; // superseded by a newer message
       if (i < spans.length) {
         const jitter = rand(55, 105);
-        spans[i].style.animationDelay = "0s";
-        spans[i].style.opacity = "0"; // ensure re-trigger of animation
-        requestAnimationFrame(() => {
-          spans[i].getBoundingClientRect(); // reflow to restart animation cleanly
-          spans[i].style.opacity = "";
-        });
         i++;
         setTimeout(tick, jitter);
       } else {
@@ -210,8 +197,7 @@
   }
 
   function startFireflySeed() {
-    const count = calmMode ? 8 : 14;
-    for (let i = 0; i < count; i++) fireflies.push(makeFirefly());
+    for (let i = 0; i < 14; i++) fireflies.push(makeFirefly());
   }
 
   // shooting stars -----------------------------------------------------------
@@ -219,7 +205,7 @@
   let nextShootAt = rand(4000, 9000);
   let shootTimer = 0;
   function maybeSpawnShootingStar(dtMs) {
-    if (currentNightAmt < 0.5 || calmMode) return;
+    if (currentNightAmt < 0.5) return;
     shootTimer += dtMs;
     if (shootTimer > nextShootAt) {
       shootTimer = 0;
@@ -306,21 +292,18 @@
     };
   }
 
-  // drifting petals / snow ------------------------------------------------
+  // drifting petals ------------------------------------------------------
   const petals = [];
   function spawnPetal(x, y) {
-    if (calmMode && petals.length > 40) return;
     petals.push({
       x: x ?? rand(0, W),
       y: y ?? -10,
       vx: rand(-0.4, 0.4),
-      vy: winterMode ? rand(0.5, 1.0) : rand(0.4, 1.1),
+      vy: rand(0.4, 1.1),
       rot: rand(0, Math.PI * 2),
       vr: rand(-0.03, 0.03),
-      size: winterMode ? rand(2.5, 5.5) : rand(4, 9),
-      hue: winterMode ? rand(195, 210) : rand(325, 345),
-      sat: winterMode ? 15 : 85,
-      light: winterMode ? 92 : 78,
+      size: rand(4, 9),
+      hue: rand(325, 345),
       life: 1,
     });
   }
@@ -328,8 +311,7 @@
   // sparkles -------------------------------------------------------------
   const sparkles = [];
   function spawnSparkleBurst(x, y, count = 10) {
-    const n = calmMode ? Math.ceil(count * 0.5) : count;
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < count; i++) {
       const a = rand(0, Math.PI * 2);
       const speed = rand(0.6, 2.2);
       sparkles.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: 1, size: rand(1.5, 3.5) });
@@ -357,7 +339,7 @@
     });
   }
   setInterval(() => {
-    if (bodyReady && !winterMode && !calmMode && currentDaylight > 0.3 && butterflies.length < 3 && Math.random() < 0.6) {
+    if (bodyReady && currentDaylight > 0.3 && butterflies.length < 3 && Math.random() < 0.6) {
       spawnButterfly();
     }
   }, 6000);
@@ -406,7 +388,7 @@
   }
 
   function drawFireflies(dt) {
-    if (currentNightAmt < 0.2 || winterMode) return;
+    if (currentNightAmt < 0.2) return;
     ctx.save();
     ctx.globalAlpha = currentNightAmt;
     for (const f of fireflies) {
@@ -441,13 +423,9 @@
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rot);
       ctx.globalAlpha = clamp(p.life, 0, 1);
-      ctx.fillStyle = `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
+      ctx.fillStyle = `hsl(${p.hue}, 85%, 78%)`;
       ctx.beginPath();
-      if (winterMode) {
-        ctx.arc(0, 0, p.size, 0, Math.PI * 2);
-      } else {
-        ctx.ellipse(0, 0, p.size, p.size * 0.6, 0, 0, Math.PI * 2);
-      }
+      ctx.ellipse(0, 0, p.size, p.size * 0.6, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -547,7 +525,6 @@
   }
 
   const grownFlowerHues = [335, 320, 350, 300, 12];
-  const winterFlowerHues = [200, 210, 190, 230];
   const MAX_GROWN = 45;
   const grownList = [];
 
@@ -557,8 +534,10 @@
     const scale = opts.scale || rand(0.7, 1.25);
     el.style.left = x + "px";
     el.style.top = y + "px";
-    const palette = winterMode ? winterFlowerHues : grownFlowerHues;
-    el.style.setProperty("--petal-color", `hsl(${palette[Math.floor(rand(0, palette.length))]}, ${winterMode ? 60 : 78}%, ${winterMode ? 82 : 68}%)`);
+    el.style.setProperty(
+      "--petal-color",
+      `hsl(${grownFlowerHues[Math.floor(rand(0, grownFlowerHues.length))]}, 78%, 68%)`
+    );
     el.style.width = 6 * scale + "vmin";
     el.style.height = 6 * scale + "vmin";
     const petalCount = 6;
@@ -610,7 +589,7 @@
       leanDeg = clamp(((e.clientX - centerX) / centerX) * 4, -4, 4);
 
       const now = performance.now();
-      if (now - lastMoveSpawn > (calmMode ? 130 : 60)) {
+      if (now - lastMoveSpawn > 60) {
         lastMoveSpawn = now;
         if (Math.random() < 0.7) spawnPetal(e.clientX + rand(-10, 10), e.clientY + rand(-10, 10));
       }
@@ -619,7 +598,7 @@
   );
 
   window.addEventListener("pointerdown", (e) => {
-    if (e.target.closest("#music-toggle, #settings-toggle, #settings-panel, #envelope-screen, #hidden-note, #message-panel, #ui-controls")) return;
+    if (e.target.closest("#music-toggle, #envelope-screen, #hidden-note, #message-panel, #ui-controls")) return;
 
     const now = performance.now();
     const dx = e.clientX - lastPointerDown.x;
@@ -729,46 +708,6 @@
     musicPlaying ? stopMusic() : startMusic();
   });
 
-  // settings panel -----------------------------------------------------------
-  const settingsToggle = $("#settings-toggle");
-  const settingsPanel = $("#settings-panel");
-  const settingWinter = $("#setting-winter");
-  const settingCalm = $("#setting-calm");
-  settingWinter.checked = winterMode;
-  settingCalm.checked = calmMode;
-
-  function openSettings() {
-    settingsPanel.hidden = false;
-    requestAnimationFrame(() => settingsPanel.classList.add("is-visible"));
-    settingsToggle.classList.add("is-open");
-    settingsToggle.setAttribute("aria-expanded", "true");
-  }
-  function closeSettings() {
-    settingsPanel.classList.remove("is-visible");
-    settingsToggle.classList.remove("is-open");
-    settingsToggle.setAttribute("aria-expanded", "false");
-    setTimeout(() => {
-      if (!settingsPanel.classList.contains("is-visible")) settingsPanel.hidden = true;
-    }, 250);
-  }
-  settingsToggle.addEventListener("click", () => {
-    settingsPanel.hidden ? openSettings() : closeSettings();
-  });
-  document.addEventListener("click", (e) => {
-    if (!settingsPanel.hidden && !e.target.closest("#settings-panel, #settings-toggle")) closeSettings();
-  });
-
-  settingWinter.addEventListener("change", () => {
-    winterMode = settingWinter.checked;
-    store.set("fy_winter", winterMode);
-    document.body.classList.toggle("season-winter", winterMode);
-  });
-  settingCalm.addEventListener("change", () => {
-    calmMode = settingCalm.checked;
-    store.set("fy_calm", calmMode);
-    document.body.classList.toggle("calm-mode", calmMode);
-  });
-
   /* ---------------------------------------------------------------- 9 -- */
   let lastT = performance.now();
   let lastDayNightUpdate = 0;
@@ -790,13 +729,13 @@
     maybeSpawnShootingStar(dtMs);
     drawShootingStars(dt);
     drawFireflies(dt);
-    if (Math.random() < (calmMode ? 0.01 : 0.02) && currentDaylight < 0.7) spawnPetal();
+    if (Math.random() < 0.02 && currentDaylight < 0.7) spawnPetal();
     drawPetals(dt);
     drawSparkles(dt);
     drawHearts(dt);
-    if (!winterMode) drawButterflies(dt);
+    drawButterflies(dt);
 
-    if (bodyReady && !calmMode) {
+    if (bodyReady) {
       breathePhase += dt * 0.12;
       const breathe = 1 + Math.sin(breathePhase) * 0.02;
       sceneEl.style.transform = `scale(${breathe.toFixed(4)}) rotate(${leanDeg.toFixed(2)}deg)`;
